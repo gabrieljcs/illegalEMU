@@ -37,7 +37,7 @@ fn main() {
     let ret = unsafe {
         CreateProcessW(
             null(),                             // lpApplicationName
-            debugged_process_u16.as_mut_ptr(),       // lpCommandLine
+            debugged_process_u16.as_mut_ptr(),  // lpCommandLine
             null(),                             // lpProcessAttributes
             null(),                             // lpThreadAttributes
             FALSE,                              // bInheritHandles
@@ -47,9 +47,43 @@ fn main() {
             &mut si.StartupInfo,                // lpStartupInfo
             &mut pi                             // lpProcessInformation
         )
-     };
+    };
 
-     println!("CreateProcess returned: {}", ret);
+    println!("CreateProcess returned: {}", ret);
 
+    match GetLastError() {
+        740 => {
+            println!("Insufficient privileges to debug the process. Restart the program as an administrator.");
+            std::process::exit(740);
+        },
+        2 => {
+            println!("The specified file was not found.");
+            std::process::exit(2);
+        },
+        3 => {
+            println!("The specified path was not found.");
+            std::process::exit(3);
+        },
+        _ => {},
+    }
+
+    let mut debug_event: DEBUG_EVENT = unsafe { std::mem::zeroed() };
+
+    /* Debugger loop */
+    loop {
+        unsafe {
+            WaitForDebugEventEx(&mut debug_event, INFINITE);
+
+            /* Pause debuggee when illegal instruction is hit */
+            if debug_event.dwDebugEventCode == EXCEPTION_DEBUG_EVENT &&
+                debug_event.u.Exception.ExceptionRecord.ExceptionCode == EXCEPTION_ILLEGAL_INSTRUCTION {
+
+                    /* Address where exception happened */
+                    let exception_address = debug_event.u.Exception.ExceptionRecord.ExceptionAddress;
+
+                    println!("Illegal instruction detected");
+            }
+        }
+    }
 
 }
